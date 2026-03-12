@@ -1,6 +1,6 @@
 # Local-First Productivity AI
 
-A blazingly fast, privacy-centric productivity application that combines your calendar, tasks, and notes with a powerful local LLM. 
+A blazingly fast, privacy-centric productivity application that combines your calendar, tasks, and notes with a powerful local LLM (Qwen 3 4B). 
 
 Instead of sending your personal data to the cloud, this app runs entirely on your machine. Your AI "brain" reads your notes, understands your schedule, and helps you manage your day—all with zero latency and 100% offline capability.
 
