@@ -8,7 +8,7 @@
 
 <pre
 	class="terminal"
-	style="text-align: left; background: #111; color: #0f0; padding: 1rem; border-radius: 12px; margin-top: 1rem; max-height: 250px; overflow-y: auto; font-family: 'Fira Code', monospace; border: 1px solid #333; box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);"
+	style="text-align: left; background: #111; color: #0f0; padding: 1rem; border-radius: 12px; margin-top: 1rem; max-height: 450px; overflow-y: auto; font-family: 'Fira Code', monospace; border: 1px solid #333; box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);"
 >
 	{output || "Waiting for sidecar output..."}
 </pre>
