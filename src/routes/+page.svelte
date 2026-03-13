@@ -4,60 +4,15 @@
   import ChatInterface from "$lib/components/ChatInterface.svelte";
   import type { SidecarStatus } from "$lib/types/llm";
 
-  let status: SidecarStatus = $state({
-    isRunning: false,
-    output: "",
-  });
-
   const llmService = new LLMService((newStatus: SidecarStatus) => {
     status = newStatus;
   });
-
-  async function handleStartSidecar() {
-    try {
-      await llmService.startSidecar({
-        modelPath: "../models/Qwen3-4B-Q4_K_M.gguf",
-        port: 8080,
-        contextLength: 4000,
-      });
-    } catch (err) {
-      console.error("Failed to start sidecar:", err);
-    }
-  }
 
   async function handleSendMessage(message: string) {
     try {
       await llmService.sendMessage(message, 8080);
     } catch (err) {
       console.error("Failed to send message:", err);
-    }
-  }
-
-  async function startSidecar() {
-    sidecarOutput += "Starting LLM sidecar...\n";
-    // TODO: make it so that the model is in the same directory as the executable
-    try {
-      const command = Command.sidecar("binaries/llama-server", [
-        "-m",
-        "../models/Qwen3-4B-Q4_K_M.gguf",
-        "--port",
-        "8080",
-        "-c",
-        "4000",
-      ]);
-      // TODO: Create function to wait for model to execute
-      // After execution chatbot modal will pop up
-      const child = await command.spawn();
-      sidecarOutput += `LLM Sidecar PID: ${child.pid}\n`;
-
-      command.stdout.on("data", (line: string) => {
-        sidecarOutput += `LLM: ${line}\n`; //TODO: change to a more readable format & make name dynamic
-      });
-      command.stderr.on("data", (line: string) => {
-        sidecarOutput += `LLM Error: ${line}\n`;
-      });
-    } catch (err) {
-      sidecarOutput += `Failed to start sidecar: ${err}\n`;
     }
   }
 </script>
@@ -69,10 +24,10 @@
   </header>
 
   <section class="controls">
-    <button 
-      type="button" 
+    <button
+      type="button"
       class="start-button"
-      onclick={handleStartSidecar} 
+      onclick={handleStartSidecar}
       disabled={status.isRunning}
     >
       {status.isRunning ? "Sidecar Running" : "Start Qwen Sidecar"}
@@ -81,9 +36,9 @@
 
   <SidecarTerminal output={status.output} />
 
-  <ChatInterface 
-    isSidecarRunning={status.isRunning} 
-    onSendMessage={handleSendMessage} 
+  <ChatInterface
+    isSidecarRunning={status.isRunning}
+    onSendMessage={handleSendMessage}
   />
 </main>
 
@@ -159,7 +114,7 @@
       --text-main: #f3f4f6;
       --text-muted: #9ca3af;
     }
-    
+
     .start-button:disabled {
       background: #059669;
     }
