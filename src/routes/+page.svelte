@@ -1,13 +1,43 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { Command } from "@tauri-apps/plugin-shell";
 
   let name = $state("");
   let greetMsg = $state("");
+  let sidecarOutput = $state("");
 
   async function greet(event: Event) {
     event.preventDefault();
     // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
     greetMsg = await invoke("greet", { name });
+  }
+
+  async function startSidecar() {
+    sidecarOutput += "Starting LLM sidecar...\n";
+    // TODO: make it so that the model is in the same directory as the executable
+    try {
+      const command = Command.sidecar("binaries/llama-server", [
+        "-m",
+        "../models/Qwen3-4B-Q4_K_M.gguf",
+        "--port",
+        "8080",
+        "-c",
+        "4000",
+      ]);
+      // TODO: Create function to wait for model to execute
+      // After execution chatbot modal will pop up
+      const child = await command.spawn();
+      sidecarOutput += `LLM Sidecar PID: ${child.pid}\n`;
+
+      command.stdout.on("data", (line: string) => {
+        sidecarOutput += `LLM: ${line}\n`; //TODO: change to a more readable format & make name dynamic
+      });
+      command.stderr.on("data", (line: string) => {
+        sidecarOutput += `LLM Error: ${line}\n`;
+      });
+    } catch (err) {
+      sidecarOutput += `Failed to start sidecar: ${err}\n`;
+    }
   }
 </script>
 
@@ -35,6 +65,14 @@
     <button type="submit">Greet</button>
   </form>
   <p>{greetMsg}</p>
+
+  <div class="row" style="margin-top: 2rem;">
+    <button type="button" onclick={startSidecar}>Start Qwen Sidecar</button>
+  </div>
+  <pre
+    style="text-align: left; background: #222; color: #0f0; padding: 1rem; border-radius: 8px; margin-top: 1rem; max-height: 200px; overflow-y: auto;">
+{sidecarOutput}
+  </pre>
 </main>
 
 <style>

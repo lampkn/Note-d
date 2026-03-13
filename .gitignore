@@ -30,6 +30,7 @@ src-tauri/target/
 # AI Models & Sidecar Binaries (Crucial for our app)
 # =========================
 # Ignore downloaded LLM weights
+/models
 *.gguf
 *.bin
 
