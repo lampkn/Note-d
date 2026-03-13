@@ -4,9 +4,26 @@
   import ChatInterface from "$lib/components/ChatInterface.svelte";
   import type { SidecarStatus } from "$lib/types/llm";
 
+  let status: SidecarStatus = $state({
+    isRunning: false,
+    output: "",
+  });
+
   const llmService = new LLMService((newStatus: SidecarStatus) => {
     status = newStatus;
   });
+
+  async function handleStartSidecar() {
+    try {
+      await llmService.startSidecar({
+        modelPath: "../models/Qwen3-4B-Q4_K_M.gguf",
+        port: 8080,
+        contextLength: 4000,
+      });
+    } catch (err) {
+      console.error("Failed to start sidecar:", err);
+    }
+  }
 
   async function handleSendMessage(message: string) {
     try {
