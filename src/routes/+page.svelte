@@ -1,188 +1,139 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  import { LLMService } from "$lib/services/llm_service";
+  import SidecarTerminal from "$lib/components/SidecarTerminal.svelte";
+  import ChatInterface from "$lib/components/ChatInterface.svelte";
+  import type { SidecarStatus } from "$lib/types/llm";
 
-  let sidecarOutput = $state("");
-  let message = $state("");
+  let status: SidecarStatus = $state({
+    isRunning: false,
+    output: "",
+  });
 
-  async function greet(event: Event) {
-    event.preventDefault();
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsg = await invoke("greet", { name });
-  }
+  const llmService = new LLMService((newStatus: SidecarStatus) => {
+    status = newStatus;
+  });
 
-  async function startSidecar() {
-    sidecarOutput += "Starting LLM sidecar...\n";
+  async function handleStartSidecar() {
     try {
-      const command = Command.sidecar("binaries/llama-server", [
-        "-m",
-        "../models/Qwen3-4B-Q4_K_M.gguf",
-        "--port",
-        "8080",
-        "-c",
-        "4000",
-      ]);
-      // TODO: Create function to wait for model to execute
-      // After execution chatbot modal will pop up
-      const child = await command.spawn();
-      sidecarOutput += `LLM Sidecar PID: ${child.pid}\n`;
-
-      command.stdout.on("data", (line: string) => {
-        sidecarOutput += `LLM: ${line}\n`; //TODO: change to a more readable format & make name dynamic
-      });
-      command.stderr.on("data", (line: string) => {
-        sidecarOutput += `LLM Error: ${line}\n`;
+      await llmService.startSidecar({
+        modelPath: "../models/Qwen3-4B-Q4_K_M.gguf",
+        port: 8080,
+        contextLength: 4000,
       });
     } catch (err) {
-      sidecarOutput += `Failed to start sidecar: ${err}\n`;
+      console.error("Failed to start sidecar:", err);
     }
   }
 
-  async function sendMessage() {
-    const response = await fetch("http://localhost:8080/completion", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        prompt: `1user\n${message}\n`,
-        n_predict: 128,
-        temperature: 0.7,
-        stop: ["</s>"],
-      }),
-    });
-    const data = await response.json();
-    sidecarOutput += `LLM: ${data.content}\n`;
+  async function handleSendMessage(message: string) {
+    try {
+      await llmService.sendMessage(message, 8080);
+    } catch (err) {
+      console.error("Failed to send message:", err);
+    }
   }
 </script>
 
 <main class="container">
-  <div class="row" style="margin-top: 2rem;">
-    <button type="button" onclick={startSidecar}>Start Qwen Sidecar</button>
-  </div>
-  <pre
-    style="text-align: left; background: #222; color: #0f0; padding: 1rem; border-radius: 8px; margin-top: 1rem; max-height: 200px; overflow-y: auto;">
-{sidecarOutput}
-  </pre>
-  <input type="text" placeholder="Message Model" bind:value={message} />
-  <button type="button" onclick={sendMessage}>Send</button>
+  <header class="header">
+    <h1>Note-d</h1>
+    <p class="subtitle">Your AI-powered workspace</p>
+  </header>
+
+  <section class="controls">
+    <button 
+      type="button" 
+      class="start-button"
+      onclick={handleStartSidecar} 
+      disabled={status.isRunning}
+    >
+      {status.isRunning ? "Sidecar Running" : "Start Qwen Sidecar"}
+    </button>
+  </section>
+
+  <SidecarTerminal output={status.output} />
+
+  <ChatInterface 
+    isSidecarRunning={status.isRunning} 
+    onSendMessage={handleSendMessage} 
+  />
 </main>
 
 <style>
-  .logo.vite:hover {
-    filter: drop-shadow(0 0 2em #747bff);
-  }
-
-  .logo.svelte-kit:hover {
-    filter: drop-shadow(0 0 2em #ff3e00);
-  }
-
   :root {
-    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-    font-size: 16px;
-    line-height: 24px;
-    font-weight: 400;
-
-    color: #0f0f0f;
-    background-color: #f6f6f6;
-
-    font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    -webkit-text-size-adjust: 100%;
+    --primary: #3b82f6;
+    --primary-hover: #2563eb;
+    --bg-dark: #1a1a1a;
+    --bg-light: #f9fafb;
+    --text-main: #111827;
+    --text-muted: #6b7280;
   }
 
   .container {
-    margin: 0;
-    padding-top: 10vh;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    min-height: 100vh;
+  }
+
+  .header {
     text-align: center;
-  }
-
-  .logo {
-    height: 6em;
-    padding: 1.5em;
-    will-change: filter;
-    transition: 0.75s;
-  }
-
-  .logo.tauri:hover {
-    filter: drop-shadow(0 0 2em #24c8db);
-  }
-
-  .row {
-    display: flex;
-    justify-content: center;
-  }
-
-  a {
-    font-weight: 500;
-    color: #646cff;
-    text-decoration: inherit;
-  }
-
-  a:hover {
-    color: #535bf2;
+    margin-bottom: 2rem;
   }
 
   h1 {
-    text-align: center;
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin-bottom: 0.5rem;
   }
 
-  input,
-  button {
-    border-radius: 8px;
-    border: 1px solid transparent;
-    padding: 0.6em 1.2em;
-    font-size: 1em;
-    font-weight: 500;
-    font-family: inherit;
-    color: #0f0f0f;
-    background-color: #ffffff;
-    transition: border-color 0.25s;
-    box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  .subtitle {
+    color: var(--text-muted);
+    font-size: 1.1rem;
   }
 
-  button {
+  .controls {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .start-button {
+    padding: 0.8rem 2rem;
+    font-weight: 600;
+    border-radius: 12px;
+    background: var(--primary);
+    color: white;
+    border: none;
     cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   }
 
-  button:hover {
-    border-color: #396cd8;
-  }
-  button:active {
-    border-color: #396cd8;
-    background-color: #e8e8e8;
+  .start-button:hover:not(:disabled) {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   }
 
-  input,
-  button {
-    outline: none;
-  }
-
-  #greet-input {
-    margin-right: 5px;
+  .start-button:disabled {
+    background: #10b981; /* Green for running status */
+    cursor: default;
+    opacity: 0.8;
   }
 
   @media (prefers-color-scheme: dark) {
     :root {
-      color: #f6f6f6;
-      background-color: #2f2f2f;
+      --bg-light: #111;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
     }
-
-    a:hover {
-      color: #24c8db;
-    }
-
-    input,
-    button {
-      color: #ffffff;
-      background-color: #0f0f0f98;
-    }
-    button:active {
-      background-color: #0f0f0f69;
+    
+    .start-button:disabled {
+      background: #059669;
     }
   }
 </style>
