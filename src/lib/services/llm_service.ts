@@ -1,5 +1,5 @@
 import { Command } from "@tauri-apps/plugin-shell";
-import type { LLMMessage, SidecarConfig, SidecarStatus } from "../types/llm";
+import type { LLMMessage, SidecarConfig, SidecarStatus, ChatCompletionResponse } from "../types/llm";
 
 export class LLMService {
   private status: SidecarStatus = {
@@ -7,12 +7,14 @@ export class LLMService {
     output: "",
   };
 
+  // Callback function to update the status of the sidecar
   private onStatusChange: (status: SidecarStatus) => void;
 
   constructor(onStatusChange: (status: SidecarStatus) => void) {
     this.onStatusChange = onStatusChange;
   }
 
+  // Start the LLM sidecar
   async startSidecar(config: SidecarConfig) {
     this.updateStatus({
       output: this.status.output + "Starting LLM sidecar...\n",
@@ -53,86 +55,53 @@ export class LLMService {
     }
   }
 
-  async sendMessage(message: string, port: number) {
-    const response = await fetch(
-      `http://localhost:${port}/v1/chat/completions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+  // Send a message to the LLM sidecar
+  async sendMessage(message: string, port: number): Promise<string> {
+    try {
+      const response = await fetch(
+        `http://localhost:${port}/v1/chat/completions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are a helpful, concise, and friendly AI assistant.",
+              },
+              {
+                role: "user",
+                content: message,
+              },
+            ],
+          }),
         },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: "system",
-              content: "You are a helpful, concise, and friendly AI assistant.",
-            },
-            {
-              role: "user",
-              content: message,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 800,
-          stream: true,
-          presence_penalty: 0.1,
-          frequency_penalty: 0.1,
-          top_p: 0.9,
-        }),
-      },
-    );
+      );
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    // Handle SSE streaming response
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("No response body");
-    }
-
-    const decoder = new TextDecoder();
-    let fullContent = "";
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      // Keep the last potentially incomplete line in the buffer
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith("data: ")) continue;
-
-        const data = trimmed.slice(6); // Remove "data: " prefix
-        if (data === "[DONE]") continue;
-
-        try {
-          const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content;
-          if (delta) {
-            fullContent += delta;
-          }
-        } catch {
-          // Skip malformed JSON chunks
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    }
 
-    console.log("LLM response:", fullContent);
-    return fullContent;
+      const data: ChatCompletionResponse = await response.json();
+      const content = data?.choices?.[0]?.message?.content ?? "";
+      return content;
+    } catch (err) {
+      const errorMsg = `Failed to send message: ${err}\n`;
+      this.updateStatus({ output: this.status.output + errorMsg });
+      throw err;
+    }
   }
 
+  // Update the status of the sidecar
   private updateStatus(partialStatus: Partial<SidecarStatus>) {
     this.status = { ...this.status, ...partialStatus };
     this.onStatusChange(this.status);
   }
 
+  // Get the status of the sidecar
   getStatus() {
     return this.status;
   }
