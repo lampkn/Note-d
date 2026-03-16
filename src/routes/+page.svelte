@@ -1,196 +1,275 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
-  import { Command } from "@tauri-apps/plugin-shell";
+  import { LLMService } from "$lib/services/llm_service";
+  import SidecarTerminal from "$lib/components/SidecarTerminal.svelte";
+  import ChatInterface from "$lib/components/ChatInterface.svelte";
+  import type { SidecarStatus } from "$lib/types/llm";
+  import type { ChatMessage } from "$lib/types/llm";
 
-  let name = $state("");
-  let greetMsg = $state("");
-  let sidecarOutput = $state("");
+  let status: SidecarStatus = $state({
+    isRunning: false,
+    output: "",
+  });
 
-  async function greet(event: Event) {
-    event.preventDefault();
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsg = await invoke("greet", { name });
-  }
+  let chatMessages: ChatMessage[] = $state([]);
+  let isChatLoading = $state(false);
 
-  async function startSidecar() {
-    sidecarOutput += "Starting LLM sidecar...\n";
-    // TODO: make it so that the model is in the same directory as the executable
+  const llmService = new LLMService((newStatus: SidecarStatus) => {
+    status = newStatus;
+  });
+
+  async function handleStartSidecar() {
     try {
-      const command = Command.sidecar("binaries/llama-server", [
-        "-m",
-        "../models/Qwen3-4B-Q4_K_M.gguf",
-        "--port",
-        "8080",
-        "-c",
-        "4000",
-      ]);
-      // TODO: Create function to wait for model to execute
-      // After execution chatbot modal will pop up
-      const child = await command.spawn();
-      sidecarOutput += `LLM Sidecar PID: ${child.pid}\n`;
-
-      command.stdout.on("data", (line: string) => {
-        sidecarOutput += `LLM: ${line}\n`; //TODO: change to a more readable format & make name dynamic
-      });
-      command.stderr.on("data", (line: string) => {
-        sidecarOutput += `LLM Error: ${line}\n`;
+      await llmService.startSidecar({
+        modelPath: "../models/Qwen3-4B-Q4_K_M.gguf",
+        port: 8080,
+        contextLength: 4000,
       });
     } catch (err) {
-      sidecarOutput += `Failed to start sidecar: ${err}\n`;
+      console.error("Failed to start sidecar:", err);
+    }
+  }
+
+  async function handleSendMessage(message: string) {
+    chatMessages = [...chatMessages, { role: "user", content: message }];
+    isChatLoading = true;
+    try {
+      const response = await llmService.sendMessage(message, 8080);
+      chatMessages = [
+        ...chatMessages,
+        { role: "assistant", content: response },
+      ];
+    } catch (err) {
+      chatMessages = [
+        ...chatMessages,
+        {
+          role: "assistant",
+          content:
+            "⚠️ Failed to get a response. Check the terminal for details.",
+        },
+      ];
+      console.error("Failed to send message:", err);
+    } finally {
+      isChatLoading = false;
     }
   }
 </script>
 
-<main class="container">
-  <h1>
-    Welcome to Tauri + Svelte + Typescript App + jaylin app lol + eventually
-    tailwind + ai
-  </h1>
+<main class="app">
+  <header class="header">
+    <h1>Note-d</h1>
+    <p class="subtitle">Your AI-powered workspace</p>
+    <div class="controls">
+      <button
+        type="button"
+        class="start-button"
+        onclick={handleStartSidecar}
+        disabled={status.isRunning}
+      >
+        <span class="btn-dot" class:running={status.isRunning}></span>
+        {status.isRunning ? "Sidecar Running" : "Start Qwen Sidecar"}
+      </button>
+    </div>
+  </header>
 
-  <div class="row">
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
-    </a>
-    <a href="https://tauri.app" target="_blank">
-      <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank">
-      <img src="/svelte.svg" class="logo svelte-kit" alt="SvelteKit Logo" />
-    </a>
+  <div class="panels">
+    <section class="panel terminal-panel">
+      <div class="panel-header">
+        <span class="panel-icon">⌨</span>
+        <span>Terminal</span>
+      </div>
+      <SidecarTerminal output={status.output} />
+    </section>
+
+    <section class="panel chat-panel-wrapper">
+      <div class="panel-header">
+        <span class="panel-icon">💬</span>
+        <span>Chat</span>
+      </div>
+      <ChatInterface
+        isSidecarRunning={status.isRunning}
+        onSendMessage={handleSendMessage}
+        messages={chatMessages}
+        isLoading={isChatLoading}
+      />
+    </section>
   </div>
-  <p>Click on the Tauri, Vite, and SvelteKit logos to learn more.</p>
-
-  <form class="row" onsubmit={greet}>
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{greetMsg}</p>
-
-  <div class="row" style="margin-top: 2rem;">
-    <button type="button" onclick={startSidecar}>Start Qwen Sidecar</button>
-  </div>
-  <pre
-    style="text-align: left; background: #222; color: #0f0; padding: 1rem; border-radius: 8px; margin-top: 1rem; max-height: 200px; overflow-y: auto;">
-{sidecarOutput}
-  </pre>
 </main>
 
 <style>
-  .logo.vite:hover {
-    filter: drop-shadow(0 0 2em #747bff);
-  }
-
-  .logo.svelte-kit:hover {
-    filter: drop-shadow(0 0 2em #ff3e00);
-  }
-
   :root {
-    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-    font-size: 16px;
-    line-height: 24px;
-    font-weight: 400;
-
-    color: #0f0f0f;
-    background-color: #f6f6f6;
-
-    font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    -webkit-text-size-adjust: 100%;
+    --primary: #6366f1;
+    --primary-hover: #4f46e5;
+    --bg-base: #0f0f1a;
+    --bg-surface: #1a1a2e;
+    --text-main: #f3f4f6;
+    --text-muted: #9ca3af;
+    --border-subtle: rgba(255, 255, 255, 0.06);
   }
 
-  .container {
+  :global(body) {
     margin: 0;
-    padding-top: 10vh;
+    background: var(--bg-base);
+    color: var(--text-main);
+    font-family:
+      "Inter",
+      "Segoe UI",
+      system-ui,
+      -apple-system,
+      sans-serif;
+  }
+
+  .app {
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    min-height: 100vh;
+    padding: 1.5rem 2rem;
+    gap: 1.25rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* Header */
+  .header {
     text-align: center;
-  }
-
-  .logo {
-    height: 6em;
-    padding: 1.5em;
-    will-change: filter;
-    transition: 0.75s;
-  }
-
-  .logo.tauri:hover {
-    filter: drop-shadow(0 0 2em #24c8db);
-  }
-
-  .row {
-    display: flex;
-    justify-content: center;
-  }
-
-  a {
-    font-weight: 500;
-    color: #646cff;
-    text-decoration: inherit;
-  }
-
-  a:hover {
-    color: #535bf2;
+    padding-bottom: 0.5rem;
   }
 
   h1 {
-    text-align: center;
+    font-size: 2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #818cf8, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0 0 0.25rem;
+    letter-spacing: -0.02em;
   }
 
-  input,
-  button {
-    border-radius: 8px;
-    border: 1px solid transparent;
-    padding: 0.6em 1.2em;
-    font-size: 1em;
-    font-weight: 500;
-    font-family: inherit;
-    color: #0f0f0f;
-    background-color: #ffffff;
-    transition: border-color 0.25s;
-    box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  .subtitle {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin: 0 0 1rem;
   }
 
-  button {
+  .controls {
+    display: flex;
+    justify-content: center;
+  }
+
+  .start-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1.5rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    border-radius: 12px;
+    background: var(--primary);
+    color: white;
+    border: none;
     cursor: pointer;
+    transition: all 0.25s;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
   }
 
-  button:hover {
-    border-color: #396cd8;
-  }
-  button:active {
-    border-color: #396cd8;
-    background-color: #e8e8e8;
+  .start-button:hover:not(:disabled) {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
   }
 
-  input,
-  button {
-    outline: none;
+  .start-button:disabled {
+    background: #059669;
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+    cursor: default;
   }
 
-  #greet-input {
-    margin-right: 5px;
+  .btn-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transition: background 0.3s;
+  }
+  .btn-dot.running {
+    background: #34d399;
+    box-shadow: 0 0 6px #34d399;
+    animation: pulse 2s infinite;
   }
 
-  @media (prefers-color-scheme: dark) {
-    :root {
-      color: #f6f6f6;
-      background-color: #2f2f2f;
+  /* Panels */
+  .panels {
+    display: flex;
+    width: 100%;
+    gap: 1.25rem;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    max-height: calc(100vh - 180px);
+    overflow: hidden;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-bottom: none;
+    border-radius: 14px 14px 0 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .panel-icon {
+    font-size: 0.9rem;
+  }
+
+  .terminal-panel :global(.terminal) {
+    flex: 1;
+    margin-top: 0 !important;
+    border-radius: 0 0 14px 14px !important;
+    max-height: none !important;
+    min-height: 0;
+  }
+
+  .chat-panel-wrapper :global(.chat-panel) {
+    flex: 1;
+    border-radius: 0 0 14px 14px;
+    min-height: 0;
+  }
+
+  /* Responsive */
+  @media (max-width: 860px) {
+    .panels {
+      grid-template-columns: 1fr;
     }
-
-    a:hover {
-      color: #24c8db;
+    .panel {
+      max-height: 45vh;
+      min-height: 280px;
     }
-
-    input,
-    button {
-      color: #ffffff;
-      background-color: #0f0f0f98;
+    .app {
+      padding: 1rem;
     }
-    button:active {
-      background-color: #0f0f0f69;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
     }
   }
 </style>
