@@ -34,5 +34,10 @@
     "externalBin": [
       "binaries/llama-server"
     ]
+  },
+  "plugins": {
+    "sql": {
+      "preload": ["sqlite:noted.db"]
+    }
   }
 }
