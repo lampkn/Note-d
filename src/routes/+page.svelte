@@ -1,9 +1,15 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { LLMService } from "$lib/services/llm_service";
+  import { logTables } from "$lib/services/db";
   import SidecarTerminal from "$lib/components/SidecarTerminal.svelte";
   import ChatInterface from "$lib/components/ChatInterface.svelte";
   import type { SidecarStatus } from "$lib/types/llm";
   import type { ChatMessage } from "$lib/types/llm";
+
+  onMount(() => {
+    logTables();
+  });
 
   let status: SidecarStatus = $state({
     isRunning: false,
