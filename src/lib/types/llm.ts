@@ -8,6 +8,8 @@ export interface ChatMessage {
 	content: string;
 }
 
+export interface ChatProcess extends LLMMessage {}
+
 export interface SidecarConfig {
 	modelPath: string;
 	port: number;

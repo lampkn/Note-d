@@ -1,5 +1,5 @@
 import { Command } from "@tauri-apps/plugin-shell";
-import type { LLMMessage, SidecarConfig, SidecarStatus, ChatCompletionResponse } from "../types/llm";
+import type { LLMMessage, SidecarConfig, SidecarStatus, ChatCompletionResponse, ChatProcess } from "../types/llm";
 
 export class LLMService {
   private status: SidecarStatus = {
@@ -80,6 +80,11 @@ export class LLMService {
           }),
         },
       );
+
+      // New processMessage function that will be used for feedback loop and will deprecate sendMessage
+      async processMessage(message: string, port: number): Promise<string> {
+        
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
